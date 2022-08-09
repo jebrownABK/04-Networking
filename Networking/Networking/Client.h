@@ -1,4 +1,4 @@
-#pragma once
+/*#pragma once
 #include <enet/enet.h>
 #include <iostream>
 
@@ -17,4 +17,4 @@ public:
 	int RunClient();
 private:
 	bool CreateClient();
-};
+};*/
