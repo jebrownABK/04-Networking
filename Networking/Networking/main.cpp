@@ -20,6 +20,8 @@ ENetHost* server = nullptr;
 ENetHost* client = nullptr;
 
 bool exit_chat = false;
+bool client_connected = false;
+
 
 /* function declarations */
 void ProcessPacket(ENetPeer* peer, string message, ENetHost* host);
@@ -32,18 +34,11 @@ void ConnectToServer();
 void SendChat(string user_name, ENetHost* host)
 {
 	string user_message = "";
-	cout << user_name << ": ";
 	getline(cin, user_message);
-	if (user_message == "quit")
-	{
-		exit_chat = true;
-	}
-	else
-	{
-		string full_message = user_name + ": " + user_message;
 
-		ProcessPacket(&(host->peers[0]), full_message, host);
-	}
+	string full_message = user_name + ": " + user_message;
+	ProcessPacket(&(host->peers[0]), full_message, host);
+
 
 }
 
@@ -59,11 +54,11 @@ void ListenForEvents(ENetHost* host, string user_name)
 			case ENET_EVENT_TYPE_CONNECT: //client has connected
 				
 				event.peer->data = (void*)("Host information");
+				cout << endl;
 				cout << event.peer->data << " has connected to the chat!" << endl;
-				SendChat(user_name, server);
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
-				cout << event.peer->data << ": " << event.packet->data << endl;
+				cout << event.packet->data << endl;
 				/* Clean up the packet now that we're done using it. */
 				enet_packet_destroy(event.packet);
 				break;
@@ -116,6 +111,10 @@ int main(int argc, char** argv)
 
 		cin.ignore();
 		thread event_listener = thread(ListenForEvents, server, host_name);
+		while (!exit_chat)
+		{
+			SendChat(host_name, server);
+		}
 
 	}
 
@@ -138,6 +137,11 @@ int main(int argc, char** argv)
 		cin.ignore();
 
 		thread event_listener = thread(ListenForEvents, client, client_name);
+
+		while (!exit_chat)
+		{
+			SendChat(client_name, client);
+		}
 	}
 	else {
 		cout << "invalid input." << endl;
