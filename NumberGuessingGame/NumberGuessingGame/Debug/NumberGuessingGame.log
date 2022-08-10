@@ -1,1 +1,3 @@
-﻿  NumberGuessingGame.vcxproj -> C:\Users\jebrown\OneDrive - Activision Publishing\Documents\source\repos\04-Networking\NumberGuessingGame\Debug\NumberGuessingGame.exe
+﻿  main.cpp
+C:\Users\jebrown\OneDrive - Activision Publishing\Documents\source\repos\04-Networking\NumberGuessingGame\NumberGuessingGame\main.cpp(335,13): warning C4101: 'event': unreferenced local variable
+  NumberGuessingGame.vcxproj -> C:\Users\jebrown\OneDrive - Activision Publishing\Documents\source\repos\04-Networking\NumberGuessingGame\Debug\NumberGuessingGame.exe
