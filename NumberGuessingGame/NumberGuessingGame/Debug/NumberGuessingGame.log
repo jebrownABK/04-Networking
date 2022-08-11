@@ -1,3 +1,4 @@
 ﻿  main.cpp
-C:\Users\jebrown\OneDrive - Activision Publishing\Documents\source\repos\04-Networking\NumberGuessingGame\NumberGuessingGame\main.cpp(335,13): warning C4101: 'event': unreferenced local variable
+C:\Users\jebrown\OneDrive - Activision Publishing\Documents\source\repos\04-Networking\NumberGuessingGame\NumberGuessingGame\main.cpp(225,76): warning C4302: 'type cast': truncation from 'void *' to 'char'
+C:\Users\jebrown\OneDrive - Activision Publishing\Documents\source\repos\04-Networking\NumberGuessingGame\NumberGuessingGame\main.cpp(377,13): warning C4101: 'event': unreferenced local variable
   NumberGuessingGame.vcxproj -> C:\Users\jebrown\OneDrive - Activision Publishing\Documents\source\repos\04-Networking\NumberGuessingGame\Debug\NumberGuessingGame.exe

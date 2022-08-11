@@ -13,12 +13,15 @@ bool IsServer = false;
 thread* PacketThread = nullptr;
 
 int correct_answer;
+int client_connections = 0;
+int players = 0;
 bool end_game = false;
-void BroadcastEndGame();
+void BroadcastEndGame(void* player_id);
+void BroadcastGuessNumber(int guess, void* player_id);
+
 enum PacketHeaderTypes
 {
 	PHT_Invalid = 0,
-	PHT_IsDead,
 	PHT_Guess,
 	PHT_Count,
 	PHT_GameFinished,
@@ -32,18 +35,6 @@ struct GamePacket
 	GamePacket() {}
 	PacketHeaderTypes Type = PHT_Invalid;
 };
-
-struct IsDeadPacket : public GamePacket
-{
-	IsDeadPacket()
-	{
-		Type = PHT_IsDead;
-	}
-
-	int playerId = 0;
-	bool IsDead = false;
-};
-
 struct GuessPacket : public GamePacket
 {
 	GuessPacket()
@@ -51,43 +42,45 @@ struct GuessPacket : public GamePacket
 		Type = PHT_Guess;
 	}
 
+	void* player_id;
 	int player_guess = 0;
 };
-
 struct PlayGamePacket : public GamePacket
 {
 	PlayGamePacket()
 	{
 		Type = PHT_Play;
 	}
+	string message = "";
 };
-
 struct WaitingRoomPacket : public GamePacket
 {
 	WaitingRoomPacket()
 	{
 		Type = PHT_Wait;
 	}
+	string message = "";
 };
-
 struct EndGamePacket : public GamePacket
 {
 	EndGamePacket()
 	{
 		Type = PHT_GameFinished;
 	}
-	int playerId = 0;
-	string end_game_message = "The winner is " + playerId;
+	void* playerId;
+	string end_game_message = "";
 };
-
 struct QuitPacket : public GamePacket
 {
 	QuitPacket()
 	{
 		Type = PHT_Quit;
 	}
+
+
+	void* player_id;
 };
-//can pass in a peer connection if wanting to limit
+
 bool CreateServer(int num_players)
 {
 	ENetAddress address;
@@ -133,16 +126,41 @@ void HandleReceivePacket(const ENetEvent& event)
 
 		if (RecGamePacket->Type == PHT_Guess)
 		{
-			cout << "Player blahblah guessed " << RecGamePacket << endl;
+			
 			GuessPacket* PlayerGuess = (GuessPacket*)(event.packet->data);
-			if (PlayerGuess)
+			cout << "Player " << PlayerGuess->player_id << " guessed " << PlayerGuess->player_guess;
+			if (PlayerGuess->player_guess == correct_answer)
 			{
-				if (PlayerGuess->player_guess == correct_answer)
-				{
-					BroadcastEndGame();
-				}
-
+				BroadcastEndGame(event.peer->data);
 			}
+			else
+			{
+				cout << "Wrong!" << endl;
+				cout << "Guess the number: ";
+				int number_guess;
+				cin >> number_guess; //read in the client's guess
+				BroadcastGuessNumber(number_guess, event.peer->data); //check guess
+			}
+
+		}
+		else if (RecGamePacket->Type == PHT_Play)
+		{
+			PlayGamePacket* PlayGame = (PlayGamePacket*)(event.packet->data); //create packet
+			cout << PlayGame->message; //display message to clients
+			int number_guess;
+			cin >> number_guess; //read in the client's guess
+			BroadcastGuessNumber(number_guess, event.peer->data); //check guess
+		}
+		else if (RecGamePacket->Type == PHT_GameFinished)
+		{
+			EndGamePacket* EndGame = (EndGamePacket*)(event.packet->data);
+			cout << EndGame->end_game_message;
+			end_game = true;
+		}
+		else if (RecGamePacket->Type == PHT_Wait)
+		{
+			WaitingRoomPacket* Waiting = (WaitingRoomPacket*)(event.packet->data);
+			cout << Waiting->message;
 		}
 	}
 	else
@@ -157,42 +175,56 @@ void HandleReceivePacket(const ENetEvent& event)
 	}
 }
 
-void BroadcastCanEnterGame(int connections)
+void BroadcastCanEnterGame(int current_connections, int number_players)
 {
-	if (connections == 1)
+	if (current_connections == number_players)
 	{ //play
 		cout << "Starting Guessing Game...";
-		PlayGamePacket* PlayPacket = new PlayGamePacket();
-		string message = "Let's play Guess the Number!\n Guess the number:";
-		ENetPacket* packet = enet_packet_create(message.c_str(),
-			sizeof(message.c_str()),
+
+		PlayGamePacket* ReadyPacket = new PlayGamePacket();
+		ReadyPacket->message = "Let's play Guess the Number!\n Guess the number:";
+
+		ENetPacket* packet = enet_packet_create(ReadyPacket,
+			sizeof(*ReadyPacket),
 			ENET_PACKET_FLAG_RELIABLE);
 
+		/* One could also broadcast the packet by         */
 		enet_host_broadcast(NetHost, 0, packet);
+		//enet_peer_send(event.peer, 0, packet);
+
+		/* One could just use enet_host_service() instead. */
+		//enet_host_service();
 		enet_host_flush(NetHost);
+		delete ReadyPacket;
 	}
 	else
 	{ //wait
 		cout << "Waiting for more players...";
-		WaitingRoomPacket* WaitPacket = new WaitingRoomPacket();
-		string message = "Waiting for more players...";
-		ENetPacket* packet = enet_packet_create(message.c_str(),
-			sizeof(message.c_str()),
+
+		WaitingRoomPacket* WaitingPacket = new WaitingRoomPacket();
+		WaitingPacket->message = "Waiting for more players...";
+
+		ENetPacket* packet = enet_packet_create(WaitingPacket,
+			sizeof(*WaitingPacket),
 			ENET_PACKET_FLAG_RELIABLE);
 
+		/* One could also broadcast the packet by         */
 		enet_host_broadcast(NetHost, 0, packet);
+		//enet_peer_send(event.peer, 0, packet);
+
+		/* One could just use enet_host_service() instead. */
+		//enet_host_service();
 		enet_host_flush(NetHost);
+		delete WaitingPacket;
 	}
 }
-
-//TODO: add player name/id into message
-void BroadcastEndGame()
+void BroadcastEndGame(void* player_id)
 {
 	EndGamePacket* EndPacket = new EndGamePacket();
-	EndPacket->playerId = 0; //this should be the winner's id
-	string end_game_message = "The winner is " + EndPacket->playerId;
-	ENetPacket* packet = enet_packet_create(end_game_message.c_str(),
-		sizeof(end_game_message.c_str()),
+	EndPacket->playerId = player_id; //this should be the winner's id
+	EndPacket->end_game_message = "The winner is " + (char)EndPacket->playerId;
+	ENetPacket* packet = enet_packet_create(EndPacket,
+		sizeof(*EndPacket),
 		ENET_PACKET_FLAG_RELIABLE);
 
 	/* One could also broadcast the packet by         */
@@ -206,13 +238,33 @@ void BroadcastEndGame()
 
 	end_game = true;
 }
+void BroadcastGuessNumber(int guess, void* player_id)
+{
+	GuessPacket* NumberGuessPacket = new GuessPacket();
+	NumberGuessPacket->player_id = player_id;
+	NumberGuessPacket->player_guess = guess;
 
+	ENetPacket* packet = enet_packet_create(NumberGuessPacket,
+		sizeof(*NumberGuessPacket),
+		ENET_PACKET_FLAG_RELIABLE);
+
+	/* One could also broadcast the packet by         */
+	enet_host_broadcast(NetHost, 0, packet);
+	//enet_peer_send(event.peer, 0, packet);
+
+	/* One could just use enet_host_service() instead. */
+	//enet_host_service();
+	enet_host_flush(NetHost);
+	delete NumberGuessPacket;
+
+	end_game = true;
+}
 void BroadcastQuitGame()
 {
 	QuitPacket* Quitter = new QuitPacket();
 	string end_game_message = "Sorry! Player disconnected from server.";
 	ENetPacket* packet = enet_packet_create(end_game_message.c_str(),
-		sizeof(end_game_message.c_str()),
+		sizeof(end_game_message.c_str()), //sizeof(*struct) w/string inside of struct
 		ENET_PACKET_FLAG_RELIABLE);
 
 	/* One could also broadcast the packet by         */
@@ -229,8 +281,6 @@ void BroadcastQuitGame()
 
 void ServerProcessPackets()
 {
-
-	int client_connections = 0;
 	while (!end_game)
 	{
 		ENetEvent event;
@@ -243,7 +293,7 @@ void ServerProcessPackets()
 				/* Store any relevant client information here. */
 				event.peer->data = (void*)("Client information");
 				cout << client_connections << " clients connected" << endl;
-				BroadcastCanEnterGame(client_connections);
+				BroadcastCanEnterGame(client_connections, players);
 				break;
 			case ENET_EVENT_TYPE_RECEIVE:
 				HandleReceivePacket(event);
@@ -260,7 +310,7 @@ void ServerProcessPackets()
 	}
 }
 
-void ClientProcessPackets()
+void ClientListenForEvents()
 {
 	while (!end_game)
 	{
@@ -283,14 +333,6 @@ void ClientProcessPackets()
 
 int main(int argc, char** argv)
 {
-	//server setup
-	//server should create a random number, ask the client to try and guess
-	//when it received a respnse, tell the player if they are correct or not
-	//shut down after guess correctly (notify client that the game is over)
-	// game should not start until two clients have connected
-	// 
-	//client will send the guess over to the server
-	//client shouldn't be able to guess until the server responds "correct" or "incorrect"
 	if (enet_initialize() != 0)
 	{
 		fprintf(stderr, "An error occurred while initializing ENet.\n");
@@ -308,7 +350,7 @@ int main(int argc, char** argv)
 
 		correct_answer = 1 + (rand() % 10);
 		cout << "Please enter number of players: ";
-		int players = 0;
+
 		cin >> players;
 
 		if (!CreateServer(players))
@@ -340,13 +382,11 @@ int main(int argc, char** argv)
 			exit(EXIT_FAILURE);
 		}
 
-		PacketThread = new thread(ClientProcessPackets);
+		string user_name;
+		cout << "Enter your first name: ";
+		cin >> user_name;
 
-		//handle possible connection failure
-		{
-			//enet_peer_reset(Peer);
-			//cout << "Connection to 127.0.0.1:1234 failed." << endl;
-		}
+		PacketThread = new thread(ClientListenForEvents);
 	}
 	else
 	{
